@@ -68,3 +68,24 @@ def generate_one(model, mute=False, cnt=None):
             print('smiles%s: %s | #atoms: %d | #bonds: %d | #resample: %.5f | time: %.5f |' % (
                 cnt, smiles, num_atoms, num_bonds, total_resample, time() - generate_start_t))
     return smiles, A, X, pure_valid, num_atoms
+
+def generate_mols_along_axis(model, z0=None, axis=None, n_mols=20, delta=0.1):
+    z_list = []
+
+    if z0 is None:
+        z0 = sample_z(model, batch_size=1)
+        
+    for dx in range(n_mols):
+        z = z0 + axis * delta * dx
+        z_list.append(z)
+        
+    z_array = np.array(z_list, dtype=np.float32)
+    
+    A, X = model.reverse(z_array, model.x_size) # For QM9: [16,9,9,5], [16,9,5], [16,8]-[B,z_dim]
+    X = F.softmax(X, dim=2)
+    mols = [construct_mol(x_elem, adj_elem, args.atomic_num_list)
+            for x_elem, adj_elem in zip(X, A)]
+    
+    smiles = [Chem.MolToSmiles(mol) for mol in mols]
+
+    return mols, smiles
